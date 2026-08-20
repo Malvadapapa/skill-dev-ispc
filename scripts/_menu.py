@@ -13,7 +13,8 @@ def menu_main():
         print("1. Ver resumen del tablero")
         print("2. Listar tareas pendientes ('Todo') e iniciar una")
         print("3. Ver tareas en curso ('In Progress') y gestionarlas")
-        print("4. Salir")
+        print("4. Renovar sesión de Google (Login OAuth)")
+        print("5. Salir")
         print("==================================")
         
         choice = input("Selecciona una opción: ").strip()
@@ -110,6 +111,13 @@ def menu_main():
                 print("Selección inválida.")
                 
         elif choice == '4':
+            from _google_auth import login_google_oauth
+            print("\nIniciando flujo de autenticación de Google...")
+            login_google_oauth(force=True)
+            print("Presiona Enter para continuar.")
+            input()
+            
+        elif choice == '5':
             print("¡Hasta luego!")
             break
         else:

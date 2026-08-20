@@ -115,6 +115,7 @@ def handle_cli_arguments():
     parser.add_argument("--list-sheets", action="store_true", help="Listar las planillas de Google Sheets disponibles en la cuenta autenticada")
     parser.add_argument("--sync-dependencies", metavar="URL", help="Sincronizar la columna de Dependencias en Google Sheets con las dependencias oficiales del Kanban de GitHub")
     parser.add_argument("--sync-backlog", metavar="URL", help="Sincronizar la columna de Estado en la pestaña Backlog de Google Sheets con el estado de las tareas en el Kanban de GitHub")
+    parser.add_argument("--figma-status", action="store_true", help="Mostrar el estado del módulo de Figma y sus configuraciones")
     parser.add_argument("--info", action="store_true", help="Mostrar información de configuración actual del skill")
     parser.add_argument("--check-user", action="store_true", help="Verificar el estado del usuario activo (rama, github token y sesión Google OAuth)")
     parser.add_argument("--google-login", "--login-google", action="store_true", help="Inicia sesión con Google OAuth solo si no hay un usuario activo")
@@ -125,8 +126,13 @@ def handle_cli_arguments():
     
     args = parser.parse_args()
     
-    if not (args.list or args.summary or args.task or args.start or args.status or args.message or args.message_file or args.fix_architecture or args.wiki or args.update_wiki or args.create_ticket or args.add_labels or args.list_fields or args.set_field or args.update_body or args.update_body_file or args.create_pr or args.list_prs or args.pr or args.approve_pr or args.request_changes_pr or args.dismiss_review_pr or args.merge_pr or args.info or args.docs or args.docs_search or args.docs_read or args.docs_update or args.assign or args.update_sheet or args.list_sheets or args.add_team_table or args.update_batch_traceability or args.audit or args.sync_dependencies or args.sync_backlog or args.check_user or args.google_login or args.force_login or args.config_dev or args.dev_branch or args.github_token):
+    if not (args.list or args.summary or args.task or args.start or args.status or args.message or args.message_file or args.fix_architecture or args.wiki or args.update_wiki or args.create_ticket or args.add_labels or args.list_fields or args.set_field or args.update_body or args.update_body_file or args.create_pr or args.list_prs or args.pr or args.approve_pr or args.request_changes_pr or args.dismiss_review_pr or args.merge_pr or args.info or args.docs or args.docs_search or args.docs_read or args.docs_update or args.assign or args.update_sheet or args.list_sheets or args.add_team_table or args.update_batch_traceability or args.audit or args.sync_dependencies or args.sync_backlog or args.check_user or args.google_login or args.force_login or args.config_dev or args.dev_branch or args.github_token or args.figma_status):
         return False
+
+    if args.figma_status:
+        from _figma import show_figma_status
+        show_figma_status()
+        return True
 
     if args.check_user:
         check_user_status()

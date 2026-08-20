@@ -160,12 +160,8 @@ def update_google_sheet_task_status(url, tk_id, new_status=None, sheet_name="Spr
         if not row:
             continue
         row_id_cell = str(row[col_map.get("id", 0)]).upper() if len(row) > col_map.get("id", 0) else ""
-        col_a_clean = row_id_cell.replace(" ", "").replace("-", "")
-        if (col_a_clean == tk_clean or 
-            (tk_num and col_a_clean == f"TK{tk_num}") or 
-            (tk_num_clean and col_a_clean == f"TK{tk_num_clean}") or 
-            (tk_num_clean and f"TK {tk_num_clean}" in row_id_cell) or
-            (tk_num_clean and f"TK{tk_num_clean}" in row_id_cell.replace(" ", ""))):
+        m_r = re.search(r'TK\s*0*(\d+)', row_id_cell)
+        if m_r and str(int(m_r.group(1))) == tk_num_clean:
             target_row = idx
             break
 
@@ -182,14 +178,18 @@ def update_google_sheet_task_status(url, tk_id, new_status=None, sheet_name="Spr
 
     if assignee:
         resp_val = assignee.upper()
-    elif existing_resp:
-        resp_val = existing_resp
-    elif DEV_BRANCH_NAME and "cristian" in DEV_BRANCH_NAME.lower():
-        resp_val = "CRISTIAN"
-    elif item_github and "CRISTIAN" in str(item_github).upper():
-        resp_val = "CRISTIAN"
+    elif item_github and item_github.get("assignees") is not None:
+        mapped_names = []
+        for l in item_github.get("assignees", []):
+            l_lower = l.lower()
+            if "cristian" in l_lower or "malvada" in l_lower: mapped_names.append("CRISTIAN")
+            elif "lau" in l_lower or "zarate" in l_lower: mapped_names.append("LAURA")
+            elif "kary" in l_lower or "quinteros" in l_lower: mapped_names.append("KARINA")
+            elif "srlachy" in l_lower or "lachy" in l_lower or "ignacio" in l_lower: mapped_names.append("IGNACIO")
+            else: mapped_names.append(l.upper())
+        resp_val = ", ".join(list(dict.fromkeys(mapped_names))) if mapped_names else "VACIO"
     else:
-        resp_val = ""
+        resp_val = "VACIO"
 
     if resp_val:
         cell_resp = f"{sheet_name}!{resp_col_letter}{target_row}"
@@ -711,6 +711,8 @@ def update_batch_tasks_traceability(url, sheet_name="Sprint 2", start_tk=1, end_
                     else:
                         mapped_names.append(l)
                 info["resp"] = ", ".join(list(dict.fromkeys(mapped_names)))
+            else:
+                info["resp"] = "VACIO"
 
         target_row_idx = None
         tk_str_full = f"TK {tk_num:02d}"
@@ -807,7 +809,7 @@ def audit_sheets_vs_kanban(url, sheet_name="Sprint 2"):
                     mapped_names.append("IGNACIO")
                 else:
                     mapped_names.append(l)
-            resp_str = ", ".join(list(dict.fromkeys(mapped_names)))
+            resp_str = ", ".join(list(dict.fromkeys(mapped_names))) if mapped_names else "VACIO"
             
             st_clean = str(item.get("status", "Todo")).upper().replace("_", " ").strip()
             status_str = STATUS_MAP.get(st_clean, "ToDo")

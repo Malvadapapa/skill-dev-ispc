@@ -157,7 +157,11 @@ def login_google_oauth(force=False):
                 "redirect_uris": ["http://localhost:8080/", "http://127.0.0.1:8080/"]
             }
         }
-        scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.readonly']
+        scopes = [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive',
+            'https://www.googleapis.com/auth/documents'
+        ]
         flow = InstalledAppFlow.from_client_config(client_config, scopes)
         print("\n[OAUTH] Abriendo navegador para iniciar sesión con Google...")
         creds = flow.run_local_server(port=8080, prompt='consent')
@@ -165,7 +169,7 @@ def login_google_oauth(force=False):
         token_data = {
             "access_token": creds.token,
             "refresh_token": creds.refresh_token,
-            "scope": scopes[0],
+            "scope": " ".join(scopes),
             "token_type": "Bearer",
             "expires_in": 3599,
             "client_id": client_id
@@ -181,7 +185,7 @@ def login_google_oauth(force=False):
         import http.server
 
         redirect_uri = "http://localhost:8080/"
-        scope = "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.readonly"
+        scope = "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents"
         auth_url = (
             f"https://accounts.google.com/o/oauth2/auth?"
             f"client_id={client_id}&"
@@ -203,7 +207,10 @@ def login_google_oauth(force=False):
                     self.send_response(200)
                     self.send_header("Content-Type", "text/html; charset=utf-8")
                     self.end_headers()
-                    self.wfile.write("<h1>¡Autenticación Exitosa!</h1><p>Podés cerrar esta ventana y volver a la consola.</p>".encode("utf-8"))
+                    self.wfile.write("<h1>¡Autenticación Exitosa con Google!</h1><p>Sesión vinculada como Cristian Vargas. Podés cerrar esta pestaña.</p>".encode("utf-8"))
+                elif self.path == "/favicon.ico":
+                    self.send_response(404)
+                    self.end_headers()
                 else:
                     self.send_response(400)
                     self.end_headers()
@@ -212,9 +219,11 @@ def login_google_oauth(force=False):
                 pass
 
         server = http.server.HTTPServer(('localhost', 8080), OAuthHandler)
-        print("\n[OAUTH] Abriendo navegador para iniciar sesión con Google...")
+        print(f"\n[OAUTH] URL de autorización:\n{auth_url}\n")
+        print("[OAUTH] Abriendo navegador para iniciar sesión con Google...")
         webbrowser.open(auth_url)
-        server.handle_request()
+        while not auth_code:
+            server.handle_request()
 
         if not auth_code:
             print("[ERROR] No se pudo obtener el código de autorización de Google.")

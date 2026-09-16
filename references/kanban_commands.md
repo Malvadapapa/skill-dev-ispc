@@ -48,6 +48,9 @@ Script: `.agents/skills/ispc-dev/scripts/kanban_helper.py`
 | `--docs-read "<path_or_url>"` | Lee un documento local (.md, .txt, .docx) o descarga/lee Google Docs/Sheets | `py scripts/kanban_helper.py --docs-read "https://docs.google.com/spreadsheets/d/<ID>/edit"` |
 | `--update-sheet "<url>"` | Actualiza la celda de Estado en Google Sheets para la tarea dada por `--task` | `py scripts/kanban_helper.py --update-sheet "<url>" --task "TK 37" --status "In Review"` |
 | `--list-sheets` | Lista las planillas de Google Sheets accesibles en la cuenta de Google | `py scripts/kanban_helper.py --list-sheets` |
+| `--sync-dependencies "<url>"` | Sincroniza la columna de dependencias de Google Sheets con el Kanban oficial de GitHub | `py scripts/kanban_helper.py --sync-dependencies "<url>"` |
+| `--sync-backlog "<url>"` | Sincroniza la columna de estado en la pestaña Backlog con el Kanban de GitHub | `py scripts/kanban_helper.py --sync-backlog "<url>"` |
+| `--sync-testing-matrix` | Sube las 5 evidencias a Google Drive y registra los casos de prueba del Módulo 5 en Google Sheets | `py scripts/kanban_helper.py --sync-testing-matrix` |
 | `--docs-update "<path>"` | Crea o actualiza un documento usando `--body` o `--body-file` | `py scripts/kanban_helper.py --docs-update "doc.md" --body "Texto"` |
 
 ## Wiki

@@ -158,6 +158,7 @@ py .agents/skills/ispc-dev/scripts/kanban_helper.py --update-wiki
 py .agents/skills/ispc-dev/scripts/kanban_helper.py --update-sheet "<URL>" --task TK37
 py .agents/skills/ispc-dev/scripts/kanban_helper.py --sync-dependencies "<URL>"
 py .agents/skills/ispc-dev/scripts/kanban_helper.py --sync-backlog "<URL>"
+py .agents/skills/ispc-dev/scripts/kanban_helper.py --sync-testing-matrix
 py .agents/skills/ispc-dev/scripts/kanban_helper.py --list-sheets
 ```
 

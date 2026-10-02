@@ -36,10 +36,14 @@ def query_graphql(query, variables=None):
 
 def fetch_project_items():
     query = """
-    query($org: String!, $number: Int!) {
+    query($org: String!, $number: Int!, $cursor: String) {
       organization(login: $org) {
         projectV2(number: $number) {
-          items(first: 100) {
+          items(first: 100, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
             nodes {
               id
               fieldValues(first: 20) {
@@ -86,41 +90,51 @@ def fetch_project_items():
     }
     """
     
-    data = query_graphql(query, {"org": ORG, "number": PROJECT_NUMBER})
-    if not data:
-        return []
-        
-    project = data.get("organization", {}).get("projectV2", {})
-    items = project.get("items", {}).get("nodes", [])
-    
     parsed_items = []
-    for item in items:
-        content = item.get("content") or {}
-        title = content.get("title", "Sin Título").strip()
-        number = content.get("number", None)
-        content_id = content.get("id", None)
-        content_type = content.get("__typename", None)
-        body = content.get("body", "").strip()
-        labels = [l["name"] for l in content.get("labels", {}).get("nodes", [])] if content_type == "Issue" else []
-        assignees = [a["login"] for a in content.get("assignees", {}).get("nodes", [])] if content_type == "Issue" else []
+    cursor = None
+    has_next_page = True
+    
+    while has_next_page:
+        data = query_graphql(query, {"org": ORG, "number": PROJECT_NUMBER, "cursor": cursor})
+        if not data:
+            break
+            
+        project = data.get("organization", {}).get("projectV2", {})
+        items_data = project.get("items", {})
+        nodes = items_data.get("nodes", [])
+        page_info = items_data.get("pageInfo", {})
         
-        status = "None"
-        for fval in item.get("fieldValues", {}).get("nodes", []):
-            if fval and fval.get("field", {}).get("name") == "Status":
-                status = fval.get("name")
-                break
-                
-        parsed_items.append({
-            "id": item["id"],
-            "title": title,
-            "number": number,
-            "status": status,
-            "content_id": content_id,
-            "content_type": content_type,
-            "body": body,
-            "labels": labels,
-            "assignees": assignees
-        })
+        for item in nodes:
+            content = item.get("content") or {}
+            title = content.get("title", "Sin Título").strip()
+            number = content.get("number", None)
+            content_id = content.get("id", None)
+            content_type = content.get("__typename", None)
+            body = content.get("body", "").strip()
+            labels = [l["name"] for l in content.get("labels", {}).get("nodes", [])] if content_type == "Issue" else []
+            assignees = [a["login"] for a in content.get("assignees", {}).get("nodes", [])] if content_type == "Issue" else []
+            
+            status = "None"
+            for fval in item.get("fieldValues", {}).get("nodes", []):
+                if fval and fval.get("field", {}).get("name") == "Status":
+                    status = fval.get("name")
+                    break
+                    
+            parsed_items.append({
+                "id": item["id"],
+                "title": title,
+                "number": number,
+                "status": status,
+                "content_id": content_id,
+                "content_type": content_type,
+                "body": body,
+                "labels": labels,
+                "assignees": assignees
+            })
+            
+        has_next_page = page_info.get("hasNextPage", False)
+        cursor = page_info.get("endCursor")
+        
     return parsed_items
 
 
@@ -291,6 +305,23 @@ def update_issue_body(issue_id, new_body):
     }
     """
     data = query_graphql(mutation, {"id": issue_id, "body": new_body})
+    if data:
+        return True
+    return False
+
+def update_issue_title(issue_id, new_title):
+    """Actualiza el título de un Issue en GitHub vía GraphQL."""
+    mutation = """
+    mutation($id: ID!, $title: String!) {
+      updateIssue(input: {id: $id, title: $title}) {
+        issue {
+          id
+          title
+        }
+      }
+    }
+    """
+    data = query_graphql(mutation, {"id": issue_id, "title": new_title})
     if data:
         return True
     return False

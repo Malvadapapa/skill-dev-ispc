@@ -130,6 +130,71 @@ def create_and_add_ticket(title, body, labels_list=None):
         return True
     return False
 
+def create_ispc_bug_ticket(tk_id, scope, bug_code, title, severity="Mayor", steps="", expected="", actual="", wcag="", module="", tc_code="", labels_list=None):
+    """Crea un issue de bug con la plantilla estandarizada ISPC y lo suma al proyecto."""
+    full_title = f"{tk_id} - bug({scope}): {bug_code} - {title}"
+    
+    wcag_str = f"WCAG 2.2 - {wcag}" if wcag else "N/A"
+    tc_str = tc_code if tc_code else "N/A (Exploración / Sprint 4)"
+    module_str = module if module else scope.capitalize()
+    
+    body = f"""### 🐛 Descripción del Defecto
+{title}
+
+---
+
+### 📍 Clasificación y Alcance
+- **Módulo Afectado:** {module_str}
+- **Componente / Scope:** {scope}
+- **Tipo de Defecto:** {'Accesibilidad WCAG' if wcag else 'Funcional / Validación'}
+- **Severidad:** {severity}
+- **Prioridad:** {'Alta' if severity in ['Crítica', 'Mayor'] else 'Media'}
+- **Criterio WCAG Afectado:** {wcag_str}
+- **Caso de Prueba Vinculado:** {tc_str}
+
+---
+
+### 📋 Precondiciones
+1. Entorno local operativo (Backend Django + Frontend Angular).
+2. Usuario autenticado con rol correspondiente según el módulo.
+
+---
+
+### 👣 Pasos para Reproducir
+{steps if steps else '1. Acceder al sistema.\\n2. Ejecutar la acción que dispara el fallo.'}
+
+---
+
+### ❌ Comportamiento Obtenido
+{actual if actual else 'Comportamiento incorrecto detectado durante las pruebas de verificación.'}
+
+---
+
+### ✅ Comportamiento Esperado
+{expected if expected else 'El sistema debe comportarse según la especificación funcional y pautas de calidad.'}
+
+---
+
+### 📷 Evidencias
+- **Captura / Log:** `docs/evidencias_bugs/EVIDENCIA_{bug_code}.png`
+
+---
+
+### 💻 Entorno de Prueba
+- **Ambiente:** Local / Staging
+- **Base de Datos:** PostgreSQL 16
+"""
+    final_labels = ["bug", scope]
+    if wcag:
+        final_labels.append("accesibilidad")
+    if labels_list:
+        for l in labels_list:
+            if l not in final_labels:
+                final_labels.append(l)
+
+    return create_and_add_ticket(full_title, body, final_labels)
+
+
 def list_project_fields():
     query = """
     query($org: String!, $number: Int!) {

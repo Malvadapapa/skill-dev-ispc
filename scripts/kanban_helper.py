@@ -30,7 +30,7 @@ from _github_api import (
     query_graphql, fetch_project_items, update_item_status,
     update_item_single_select_field, add_comment_to_task,
     get_viewer_id, assign_user_to_issue, update_issue_body,
-    fix_body_architecture, show_summary
+    update_issue_title, fix_body_architecture, show_summary
 )
 from _git_utils import (
     run_git, get_current_branch, get_branch_name_from_title,
@@ -59,7 +59,7 @@ from _pull_requests import (
 from _tickets import (
     find_item_by_tk_id, get_repository_id, create_github_issue,
     add_issue_to_project, get_repo_labels, add_labels_to_issue,
-    apply_labels_by_names, create_and_add_ticket,
+    apply_labels_by_names, create_and_add_ticket, create_ispc_bug_ticket,
     list_project_fields, update_item_field_by_names
 )
 from _menu import menu_main
@@ -68,6 +68,8 @@ from _menu import menu_main
 def handle_cli_arguments():
     parser = argparse.ArgumentParser(description="FCCApp Kanban Helper CLI - Automatizador de Tareas (ISPC Dev Skill)")
     parser.add_argument("--list", action="store_true", help="Listar todas las tareas del tablero")
+    parser.add_argument("--column", metavar="COL_NAME", help="Filtrar tareas por columna al listar (ej. 'Todo', 'In Progress', 'In Review', 'Done')")
+    parser.add_argument("--assignee-filter", metavar="USERNAME", help="Filtrar tareas por usuario asignado (ej. 'Malvadapapa', 'KaryQuinteros')")
     parser.add_argument("--summary", action="store_true", help="Mostrar resumen cuantitativo de las columnas")
     parser.add_argument("--task", metavar="TK_ID", help="ID de la tarea a gestionar (ej. TK001)")
     parser.add_argument("--start", action="store_true", help="Iniciar la tarea especificada (mover a In Progress y crear rama)")
@@ -86,6 +88,18 @@ def handle_cli_arguments():
     parser.add_argument("--value", metavar="VALUE", help="Valor a asignar al campo de la tarea especificada por --task")
     parser.add_argument("--update-body", metavar="TEXTO", help="Actualizar la descripción/cuerpo del ticket especificado por --task")
     parser.add_argument("--update-body-file", metavar="PATH", help="Actualizar la descripción/cuerpo del ticket especificado por --task usando el contenido de un archivo")
+    parser.add_argument("--rename-ticket", metavar="NUEVO_TITULO", help="Renombrar el ticket especificado por --task con un nuevo título")
+    parser.add_argument("--create-bug", action="store_true", help="Crear un ticket de bug con la plantilla oficial ISPC y sumarlo al Kanban")
+    parser.add_argument("--scope", metavar="SCOPE", default="frontend", help="Alcance del ticket o bug (ej: frontend, backend, api)")
+    parser.add_argument("--bug-code", metavar="CODE", help="Código de trazabilidad del bug (ej: BUG-04, ACC-BUG-01)")
+    parser.add_argument("--title", metavar="TITULO", help="Título o descripción breve para la creación de tickets o bugs")
+    parser.add_argument("--severity", metavar="NIVEL", default="Mayor", help="Severidad del bug (Crítica, Mayor, Menor, Trivial)")
+    parser.add_argument("--wcag", metavar="CRITERIO", default="", help="Criterio de accesibilidad WCAG afectado (ej: 1.4.3 Contraste)")
+    parser.add_argument("--steps", metavar="PASOS", default="", help="Pasos numerados para reproducir el bug")
+    parser.add_argument("--actual", metavar="TEXTO", default="", help="Comportamiento obtenido observado en el bug")
+    parser.add_argument("--expected", metavar="TEXTO", default="", help="Comportamiento esperado en el bug")
+    parser.add_argument("--module", metavar="MODULO", default="", help="Módulo del sistema afectado por el bug")
+    parser.add_argument("--tc-code", metavar="TC", default="", help="Código de caso de prueba vinculado (ej: TEST-D-001)")
     parser.add_argument("--create-pr", action="store_true", help="Crear un Pull Request en GitHub")
     parser.add_argument("--list-prs", action="store_true", help="Listar todos los Pull Requests abiertos en el repositorio")
     parser.add_argument("--pr", metavar="PR_NUMBER", type=int, help="Analizar e inspeccionar un Pull Request específico por su número")
@@ -128,7 +142,7 @@ def handle_cli_arguments():
     
     args = parser.parse_args()
     
-    if not (args.list or args.summary or args.task or args.start or args.status or args.message or args.message_file or args.fix_architecture or args.wiki or args.update_wiki or args.create_ticket or args.add_labels or args.list_fields or args.set_field or args.update_body or args.update_body_file or args.create_pr or args.list_prs or args.pr or args.approve_pr or args.request_changes_pr or args.dismiss_review_pr or args.merge_pr or args.info or args.docs or args.docs_search or args.docs_read or args.docs_update or args.assign or args.update_sheet or args.list_sheets or args.add_team_table or args.update_batch_traceability or args.audit or args.sync_dependencies or args.sync_backlog or args.check_user or args.google_login or args.force_login or args.config_dev or args.dev_branch or args.github_token or args.figma_status or args.sync_testing_matrix):
+    if not (args.list or args.column or args.assignee_filter or args.summary or args.task or args.start or args.status or args.message or args.message_file or args.fix_architecture or args.wiki or args.update_wiki or args.create_ticket or args.create_bug or args.add_labels or args.list_fields or args.set_field or args.update_body or args.update_body_file or args.rename_ticket or args.create_pr or args.list_prs or args.pr or args.approve_pr or args.request_changes_pr or args.dismiss_review_pr or args.merge_pr or args.info or args.docs or args.docs_search or args.docs_read or args.docs_update or args.assign or args.update_sheet or args.list_sheets or args.add_team_table or args.update_batch_traceability or args.audit or args.sync_dependencies or args.sync_backlog or args.check_user or args.google_login or args.force_login or args.config_dev or args.dev_branch or args.github_token or args.figma_status or args.sync_testing_matrix):
         return False
 
     if args.sync_testing_matrix:
@@ -173,7 +187,7 @@ def handle_cli_arguments():
         return True
 
     if args.approve_pr:
-        comm_text = args.comment if args.comment else ""
+        comm_text = args.comment or args.message or ""
         if args.message_file and os.path.exists(args.message_file):
             with open(args.message_file, "r", encoding="utf-8") as f_in:
                 comm_text = f_in.read()
@@ -181,7 +195,7 @@ def handle_cli_arguments():
         return True
 
     if args.request_changes_pr:
-        comm_text = args.comment if args.comment else ""
+        comm_text = args.comment or args.message or ""
         if args.message_file and os.path.exists(args.message_file):
             with open(args.message_file, "r", encoding="utf-8") as f_in:
                 comm_text = f_in.read()
@@ -324,6 +338,58 @@ def handle_cli_arguments():
         create_and_add_ticket(args.create_ticket, body, labels)
         return True
 
+    if args.create_bug:
+        if not args.task:
+            print("[ERROR] Debés especificar --task con el ID (ej: --task TK245)")
+            return True
+        if not args.bug_code:
+            print("[ERROR] Debés especificar el código de trazabilidad con --bug-code (ej: --bug-code ACC-BUG-04)")
+            return True
+        if not args.title:
+            print("[ERROR] Debés especificar el título con --title")
+            return True
+        labels = [l.strip() for l in args.labels.split(",")] if args.labels else None
+        success = create_ispc_bug_ticket(
+            tk_id=args.task,
+            scope=args.scope,
+            bug_code=args.bug_code,
+            title=args.title,
+            severity=args.severity,
+            steps=args.steps,
+            expected=args.expected,
+            actual=args.actual,
+            wcag=args.wcag,
+            module=args.module,
+            tc_code=args.tc_code,
+            labels_list=labels
+        )
+        if success:
+            print(f"[OK] Bug {args.task} ({args.bug_code}) creado exitosamente en GitHub y agregado al Kanban.")
+        else:
+            print(f"[ERROR] No se pudo crear el ticket de bug {args.task}.")
+        return True
+
+    if args.rename_ticket:
+        if not args.task:
+            print("[ERROR] Debés especificar --task TK_ID junto con --rename-ticket.")
+            return True
+        items = fetch_project_items()
+        item = find_item_by_tk_id(args.task, items)
+        if not item:
+            print(f"[ERROR] No se encontró la tarea '{args.task}' en el tablero.")
+            return True
+        if item["content_type"] != "Issue":
+            print(f"[ERROR] La tarea '{args.task}' es un DraftIssue, no se puede renombrar.")
+            return True
+        old_title = item["title"]
+        if update_issue_title(item["content_id"], args.rename_ticket):
+            print(f"[OK] Ticket renombrado exitosamente.")
+            print(f"     Antes: {old_title}")
+            print(f"     Ahora: {args.rename_ticket}")
+        else:
+            print(f"[ERROR] No se pudo renombrar el ticket '{args.task}'.")
+        return True
+
     if args.summary:
         items = fetch_project_items()
         show_summary(items)
@@ -394,111 +460,84 @@ def handle_cli_arguments():
         print(f"\n[OK] Proceso terminado. Se actualizaron {fixed_count} tickets.")
         return True
         
-    if args.list:
+    if args.list or args.column or args.assignee_filter:
         items = fetch_project_items()
         columns = {}
         for item in items:
-            stat = item["status"]
+            stat = item.get("status", "None")
+            if args.column and stat.lower() != args.column.strip().lower():
+                continue
+            if args.assignee_filter:
+                assignees = [a.lower() for a in item.get("assignees", [])]
+                if args.assignee_filter.strip().lower() not in assignees:
+                    continue
             if stat not in columns:
                 columns[stat] = []
             columns[stat].append(item)
             
         print("\n=== DETALLE DE TAREAS EN EL TABLERO ===")
-        for col_name in STATUS_OPTIONS.keys():
-            col_items = columns.get(col_name, [])
-            print(f"\n* {col_name.upper()} ({len(col_items)} tareas):")
+        target_cols = [args.column] if args.column else STATUS_OPTIONS.keys()
+        for col_name in target_cols:
+            matching_key = next((k for k in STATUS_OPTIONS.keys() if k.lower() == col_name.strip().lower()), col_name)
+            col_items = columns.get(matching_key, [])
+            print(f"\n* {matching_key.upper()} ({len(col_items)} tareas):")
             for item in col_items:
                 num_str = f"#{item['number']}" if item['number'] else "Draft"
-                print(f"  - [{num_str}] {item['title']}")
+                assignees_str = f" | Asignados: {', '.join(item.get('assignees', []))}" if item.get('assignees') else ""
+                print(f"  - [{num_str}] {item['title']}{assignees_str}")
         return True
         
     if args.task:
-        item = find_item_by_tk_id(args.task)
-        if not item:
-            print(f"[ERROR] No se encontró ninguna tarea con el ID '{args.task}'.")
-            return True
-            
-        print(f"\n==================================================")
-        print(f" TAREA: {item['title']}")
-        print(f" Estado actual: {item['status']}")
-        print(f" Issue: #{item['number']}" if item['number'] else " Nota Borrador")
-        print(f"==================================================")
-        if item.get("body"):
-            print("\n--- DESCRIPCIÓN / CRITERIOS DE ACEPTACIÓN ---")
-            print(item["body"])
-            print("==================================================\n")
+        task_ids = [t.strip() for t in args.task.split(",") if t.strip()]
+        for tk_id in task_ids:
+            item = find_item_by_tk_id(tk_id)
+            if not item:
+                print(f"[ERROR] No se encontró ninguna tarea con el ID '{tk_id}'.")
+                continue
+                
+            print(f"\n==================================================")
+            print(f" TAREA: {item['title']}")
+            print(f" Estado actual: {item['status']}")
+            print(f" Issue: #{item['number']}" if item['number'] else " Nota Borrador")
+            print(f"==================================================")
+            if item.get("body"):
+                print("\n--- DESCRIPCIÓN / CRITERIOS DE ACEPTACIÓN ---")
+                print(item["body"])
+                print("==================================================\n")
 
-        if args.add_labels:
-            labels = [l.strip() for l in args.add_labels.split(",")]
-            apply_labels_by_names(item["content_id"], labels)
+            if args.add_labels:
+                labels = [l.strip() for l in args.add_labels.split(",")]
+                apply_labels_by_names(item["content_id"], labels)
 
-        if args.assign:
-            if item.get("content_type") == "Issue":
-                viewer_id = get_viewer_id()
-                if viewer_id:
-                    assign_user_to_issue(item["content_id"], viewer_id)
-            else:
-                print("[WARN] Solo se pueden asignar usuarios a tarjetas de tipo Issue.")
-
-        if args.set_field:
-            if not args.value:
-                print("[ERROR] Debes especificar un valor usando --value '<valor>' para actualizar el campo.")
-            else:
-                update_item_field_by_names(item["id"], args.set_field, args.value)
-        
-        if args.message:
-            add_comment_to_task(item["content_id"], item["content_type"], args.message, item["id"])
-            
-        if args.message_file:
-            if not os.path.exists(args.message_file):
-                print(f"[ERROR] El archivo '{args.message_file}' no existe.")
-            else:
-                with open(args.message_file, "r", encoding="utf-8") as f_in:
-                    message_content = f_in.read().strip()
-                add_comment_to_task(item["content_id"], item["content_type"], message_content, item["id"])
-            
-        if args.update_body:
-            if item.get("content_type") == "Issue":
-                if update_issue_body(item["content_id"], args.update_body):
-                    print(f"[OK] Body del ticket #{item['number']} actualizado exitosamente en GitHub.")
-                else:
-                    print(f"[ERROR] Error al actualizar el body del ticket #{item['number']}.")
-            elif item.get("content_type") == "DraftIssue":
-                mutation = """
-                mutation($projectId: ID!, $itemId: ID!, $body: String!) {
-                  updateProjectV2DraftIssue(
-                    input: {
-                      projectId: $projectId
-                      itemId: $itemId
-                      body: $body
-                    }
-                  ) {
-                    projectV2DraftIssue {
-                      id
-                    }
-                  }
-                }
-                """
-                variables = {
-                    "projectId": PROJECT_ID,
-                    "itemId": item["id"],
-                    "body": args.update_body
-                }
-                data = query_graphql(mutation, variables)
-                if data:
-                    print("[OK] Descripción de la nota borrador actualizada en GitHub.")
-                else:
-                    print("[ERROR] Error al actualizar nota borrador.")
-            
-        if args.update_body_file:
-            if not os.path.exists(args.update_body_file):
-                print(f"[ERROR] El archivo '{args.update_body_file}' no existe.")
-            else:
-                with open(args.update_body_file, "r", encoding="utf-8") as f_in:
-                    body_content = f_in.read().strip()
+            if args.assign:
                 if item.get("content_type") == "Issue":
-                    if update_issue_body(item["content_id"], body_content):
-                        print(f"[OK] Body del ticket #{item['number']} actualizado exitosamente en GitHub desde archivo.")
+                    viewer_id = get_viewer_id()
+                    if viewer_id:
+                        assign_user_to_issue(item["content_id"], viewer_id)
+                else:
+                    print("[WARN] Solo se pueden asignar usuarios a tarjetas de tipo Issue.")
+
+            if args.set_field:
+                if not args.value:
+                    print("[ERROR] Debes especificar un valor usando --value '<valor>' para actualizar el campo.")
+                else:
+                    update_item_field_by_names(item["id"], args.set_field, args.value)
+            
+            if args.message:
+                add_comment_to_task(item["content_id"], item["content_type"], args.message, item["id"])
+                
+            if args.message_file:
+                if not os.path.exists(args.message_file):
+                    print(f"[ERROR] El archivo '{args.message_file}' no existe.")
+                else:
+                    with open(args.message_file, "r", encoding="utf-8") as f_in:
+                        message_content = f_in.read().strip()
+                    add_comment_to_task(item["content_id"], item["content_type"], message_content, item["id"])
+                
+            if args.update_body:
+                if item.get("content_type") == "Issue":
+                    if update_issue_body(item["content_id"], args.update_body):
+                        print(f"[OK] Body del ticket #{item['number']} actualizado exitosamente en GitHub.")
                     else:
                         print(f"[ERROR] Error al actualizar el body del ticket #{item['number']}.")
                 elif item.get("content_type") == "DraftIssue":
@@ -520,38 +559,76 @@ def handle_cli_arguments():
                     variables = {
                         "projectId": PROJECT_ID,
                         "itemId": item["id"],
-                        "body": body_content
+                        "body": args.update_body
                     }
                     data = query_graphql(mutation, variables)
                     if data:
-                        print("[OK] Descripción de la nota borrador actualizada en GitHub desde archivo.")
+                        print("[OK] Descripción de la nota borrador actualizada en GitHub.")
                     else:
                         print("[ERROR] Error al actualizar nota borrador.")
-
-        if args.start:
-            success = update_item_status(item["id"], "In Progress")
-            if success:
-                update_google_sheet_task_status(DEFAULT_GOOGLE_SHEET_URL, args.task, "IN PROGRESS", assignee="CRISTIAN")
-                if item.get("content_type") == "Issue":
-                    viewer_id = get_viewer_id()
-                    if viewer_id:
-                        assign_user_to_issue(item["content_id"], viewer_id)
-                branch_name = get_branch_name_from_title(item["title"])
-                create_and_checkout_branch(branch_name)
-                print(f"[OK] Tarea '{args.task}' iniciada con éxito.")
                 
-        elif args.status:
-            target_status = None
-            for key in STATUS_OPTIONS.keys():
-                if key.lower() == args.status.lower().strip():
-                    target_status = key
-                    break
-            if not target_status:
-                print(f"[ERROR] Estado '{args.status}' no válido. Opciones válidas: {list(STATUS_OPTIONS.keys())}")
-            else:
-                success = update_item_status(item["id"], target_status)
+            if args.update_body_file:
+                if not os.path.exists(args.update_body_file):
+                    print(f"[ERROR] El archivo '{args.update_body_file}' no existe.")
+                else:
+                    with open(args.update_body_file, "r", encoding="utf-8") as f_in:
+                        body_content = f_in.read().strip()
+                    if item.get("content_type") == "Issue":
+                        if update_issue_body(item["content_id"], body_content):
+                            print(f"[OK] Body del ticket #{item['number']} actualizado exitosamente en GitHub desde archivo.")
+                        else:
+                            print(f"[ERROR] Error al actualizar el body del ticket #{item['number']}.")
+                    elif item.get("content_type") == "DraftIssue":
+                        mutation = """
+                        mutation($projectId: ID!, $itemId: ID!, $body: String!) {
+                          updateProjectV2DraftIssue(
+                            input: {
+                              projectId: $projectId
+                              itemId: $itemId
+                              body: $body
+                            }
+                          ) {
+                            projectV2DraftIssue {
+                              id
+                            }
+                          }
+                        }
+                        """
+                        variables = {
+                            "projectId": PROJECT_ID,
+                            "itemId": item["id"],
+                            "body": body_content
+                        }
+                        data = query_graphql(mutation, variables)
+                        if data:
+                            print("[OK] Descripción de la nota borrador actualizada en GitHub desde archivo.")
+                        else:
+                            print("[ERROR] Error al actualizar nota borrador.")
+
+            if args.start:
+                success = update_item_status(item["id"], "In Progress")
                 if success:
-                    update_google_sheet_task_status(DEFAULT_GOOGLE_SHEET_URL, args.task, target_status)
+                    update_google_sheet_task_status(DEFAULT_GOOGLE_SHEET_URL, tk_id, "IN PROGRESS", assignee="CRISTIAN")
+                    if item.get("content_type") == "Issue":
+                        viewer_id = get_viewer_id()
+                        if viewer_id:
+                            assign_user_to_issue(item["content_id"], viewer_id)
+                    branch_name = get_branch_name_from_title(item["title"])
+                    create_and_checkout_branch(branch_name)
+                    print(f"[OK] Tarea '{tk_id}' iniciada con éxito.")
+                    
+            elif args.status:
+                target_status = None
+                for key in STATUS_OPTIONS.keys():
+                    if key.lower() == args.status.lower().strip():
+                        target_status = key
+                        break
+                if not target_status:
+                    print(f"[ERROR] Estado '{args.status}' no válido. Opciones válidas: {list(STATUS_OPTIONS.keys())}")
+                else:
+                    success = update_item_status(item["id"], target_status)
+                    if success:
+                        update_google_sheet_task_status(DEFAULT_GOOGLE_SHEET_URL, tk_id, target_status)
         return True
     else:
         if args.start or args.status or args.message:

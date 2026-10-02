@@ -69,7 +69,7 @@ def inspect_pull_request(pr_number):
             print(f"==================================================")
             print(f" Autor: {pr.get('user', {}).get('login')}")
             print(f" Estado: {pr.get('state')} | Estado de fusión: {pr.get('mergeable_state')} (Mergeable: {pr.get('mergeable')})")
-            print(f" Ramas: {pr.get('head', {}).get('ref')} ➔ {pr.get('base', {}).get('ref')}")
+            print(f" Ramas: {pr.get('head', {}).get('ref')} -> {pr.get('base', {}).get('ref')}")
             print(f" URL: {pr.get('html_url')}")
             if pr.get("body"):
                 print("\n--- DESCRIPCIÓN ---")

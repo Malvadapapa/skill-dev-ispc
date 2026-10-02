@@ -23,8 +23,11 @@ Script: `.agents/skills/ispc-dev/scripts/kanban_helper.py`
 | `--task <ID> --message-file <PATH>` | Agrega comentario desde archivo | `py scripts/kanban_helper.py --task TK001 --message-file comment.md` |
 | `--task <ID> --add-labels <LISTA>` | Agrega etiquetas separadas por comas | `py scripts/kanban_helper.py --task TK001 --add-labels "backend,high priority"` |
 | `--task <ID> --set-field <CAMPO> --value <VALOR>` | Actualiza campo de selección única | `py scripts/kanban_helper.py --task TK001 --set-field "Sprint" --value "Sprint 3"` |
+| `--task <ID> --rename-ticket <TITULO>` | Actualiza el título del issue en GitHub y Kanban | `py scripts/kanban_helper.py --task TK214 --rename-ticket "TK214 - ..."` |
 | `--task <ID> --update-body <TEXTO>` | Actualiza la descripción del ticket | `py scripts/kanban_helper.py --task TK001 --update-body "Nueva descripción"` |
 | `--task <ID> --update-body-file <PATH>` | Actualiza descripción desde archivo | `py scripts/kanban_helper.py --task TK001 --update-body-file body.md` |
+| `--create-ticket` | Crea un ticket general en GitHub y lo suma al proyecto | `py scripts/kanban_helper.py --create-ticket --task TK250 --title "..." --body "..."` |
+| `--create-bug` | Crea un reporte de bug estandarizado ISPC con etiquetas | `py scripts/kanban_helper.py --create-bug --task TK245 --scope frontend --bug-code ACC-BUG-04 --title "..." --severity Media --wcag "1.4.3"` |
 
 ## Pull Requests
 

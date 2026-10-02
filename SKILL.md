@@ -121,6 +121,8 @@ La skill cubre **4 dominios funcionales**. La IA DEBE identificar a qué dominio
 ```bash
 # Comandos típicos de este dominio:
 py .agents/skills/ispc-dev/scripts/kanban_helper.py --list
+py .agents/skills/ispc-dev/scripts/kanban_helper.py --list --column "Todo"
+py .agents/skills/ispc-dev/scripts/kanban_helper.py --list --column "Todo" --assignee-filter "Malvadapapa"
 py .agents/skills/ispc-dev/scripts/kanban_helper.py --task TK37 --start
 py .agents/skills/ispc-dev/scripts/kanban_helper.py --summary
 py .agents/skills/ispc-dev/scripts/kanban_helper.py --audit "<URL_SHEET>"
@@ -198,6 +200,18 @@ https://www.figma.com/design/KZhmDCMHAtuj1d77pXdygB/FCC_App?node-id=0-1
 ```
 
 **Uso por la IA:** Cuando se requiera consultar diseño de vistas o componentes, la IA debe consultar el MCP de Figma o las referencias en `wiki/Maquetado.md` sin cargar scripts de backend ni módulos innecesarios.
+
+---
+
+#### 🧪 Dominio 5: Calidad, Testing y Accesibilidad (QA)
+**Cuándo:** Ejecutar suites de backend/pytest, colecciones Postman/Newman, Playwright E2E, auditorías de accesibilidad WCAG y mantenimiento de matrices de calidad.
+
+| Módulo / Recurso a consultar | Qué contiene |
+|---|---|
+| `references/test_issue_template.md` | Plantilla de tickets de testing por capa |
+| `references/bug_issue_template.md` | Plantilla oficial de reporte de bugs |
+| `wiki/Testing.md` | Estrategia de testing, pirámide y comandos de ejecución |
+| `wiki/Matriz-de-Trazabilidad.md` | Matriz bidireccional HU ↔ TC ↔ Test ↔ Bug |
 
 ---
 
@@ -524,5 +538,109 @@ Cualquier actualización en la documentación (ej. nuevas historias de usuario e
 1. **Lectura previa obligatoria de la fila de encabezados:** Antes de modificar o actualizar una hoja de cálculo en Google Sheets, la skill/agente debe inspeccionar dinámicamente la fila de encabezados (ej. Row 4) para identificar las columnas reales (`ID TAREA`, `HISTORIA DE USUARIO`, `TAREAS`, `RESPONSABLE`, `ESTADO`, `ESTIMACIÓN`, `DEPENDENCIAS`).
 2. **Prohibición de columnas estáticas:** Nunca se deben asumir posiciones estáticas de columnas (ej. letra C o D estáticas) ya que la estructura de la hoja de cálculo puede ser modificada por el usuario.
 3. **Validación previa en el tablero de GitHub:** La skill DEBE consultar en tiempo real el Kanban de GitHub (`fetch_project_items()`) antes de volcar cualquier estado o responsable en la hoja de cálculo. Los valores se sincronizan 1:1 desde GitHub y NUNCA se asumen manualmente.
+
+---
+
+## 🆀 Bloque Q — Calidad, Testing Automatizado y Trazabilidad (Sprint 4)
+
+Este bloque rige la ejecución del Sprint 4 de Calidad y Verificación y Validación de Programas (V&V), orientado a la pirámide de automatización, pruebas de caja negra, pruebas de extremo a extremo (E2E), accesibilidad web (WCAG 2.2 Nivel AA) y trazabilidad bidireccional.
+
+### Q.1 Pirámide de Automatización Normativa
+La cátedra de V&V exige estructurar el testing en capas con herramientas especializadas:
+
+```
+                 ▲
+                / \     Capa 3: E2E Frontend (Playwright + POM)
+               /───\    Capa 2: API Caja Negra (Postman v2.1 + Newman)
+              /─────\   Capa 1: Backend Unit/Integration (DRF APITestCase + Coverage)
+             /───────\  Transversal: Accesibilidad (axe-core + Lighthouse + Checklist)
+```
+
+1. **Capa 1 — Backend (DRF / `pytest-django` / `APITestCase`):**
+   - **Base de datos:** Uso estricto de PostgreSQL de pruebas (prohibido SQLite en entrega final).
+   - **Patrón AAA:** Todo método de prueba debe contener bloques claramente rotulados con `# Arrange`, `# Act`, `# Assert`.
+   - **Enrutamiento:** Resolución dinámica de endpoints usando `reverse('nombre-url')`, prohibidas URLs fijas/hardcodeadas.
+   - **Casos obligatorios:** Mínimo 12 pruebas cubriendo verbos permitidos (200/201), verbos no permitidos (405), autenticación/permisos RBAC (401/403) y validación de serializers ante datos anómalos (400 con errores estructurados por campo).
+   - **Cobertura:** Ejecución mediante `coverage run -m pytest` y reporte `coverage html` alcanzando ≥ 80% sobre los módulos auditados.
+
+2. **Capa 2 — API Caja Negra (Postman v2.1 / Newman):**
+   - **Colección:** Exportada en `tests/api/coleccion.json` estructurada obligatoriamente en carpetas por recurso (`clientes`, `vehiculos`, `ordenes`, `turnos`).
+   - **Variables dinámicas:** Uso de entornos (`tests/api/entorno.local.json`) con `{{baseUrl}}` y propagación de IDs creados vía `pm.environment.set("clienteId", res.id)`. Prohibido quemar tokens o IDs fijos.
+   - **Aserciones mínimas por request:** Verificación de código HTTP (ej. 200/201/400/404), tiempo de respuesta (`pm.expect(pm.response.responseTime).to.be.below(500)`) y validación de esquema JSON (JSON Schema Draft-07).
+   - **Flujos encadenados:** Secuencia CRUD completa en al menos 2 recursos y pruebas negativas intencionales (sin token y payload inválido).
+   - **CLI Newman:** Automatización con `newman run tests/api/coleccion.json -e tests/api/entorno.local.json -r cli,htmlextra --reporter-htmlextra-export tests/api/reports/report_newman.html`.
+
+3. **Capa 3 — Frontend E2E (Playwright / Page Object Model):**
+   - **Arquitectura POM:** Clases de página ubicadas en `e2e/pages/` (ej. `LoginPage.ts`, `OrdenesPage.ts`) que encapsulan la interacción con la UI. Los Page Objects NO deben contener aserciones (`expect`); las aserciones residen en `e2e/tests/`.
+   - **Selectores semánticos:** Priorizar atributos `data-testid` en componentes Angular involucrados en lugar de clases CSS o jerarquías frágiles.
+   - **Flujos críticos:** Login válido e inválido parametrizado, CRUD de entidad principal y flujo operativo de taller.
+   - **Evidencia de fallo obligatoria:** Configuración de Playwright con `screenshot: 'only-on-failure'`, `video: 'retain-on-failure'` y `trace: 'retain-on-failure'` con al menos un trace/captura de fallo documentado.
+
+4. **Transversal — Accesibilidad Web (WCAG 2.2 Nivel AA):**
+   - **Automatizada con axe-core:** Integración de `@axe-core/playwright` evaluando pantallas principales sin violaciones `critical` o `serious`.
+   - **Google Lighthouse:** Auditoría en modo Desktop y Mobile con puntaje en Accesibilidad ≥ 90.
+   - **Checklist manual de 8 puntos:** Navegación exclusiva por teclado (focus visible y orden lógico), contraste de color (mínimo 4.5:1 texto normal y 3:1 componentes), etiquetas en formularios (`label` asociado o `aria-label`), zoom del 200% sin pérdida funcional, reflow a 320px de ancho sin scroll horizontal y pruebas con lector de pantalla (NVDA / VoiceOver).
+
+---
+
+### Q.2 Nomenclatura Estricta y Códigos de Trazabilidad
+Para cumplir con las pautas de cátedra, todo ítem de calidad debe utilizar su código normalizado:
+
+| Prefijo | Capa / Propósito | Ejemplo de Título |
+|---|---|---|
+| `AUT-BE-XX` | Automatización Backend | `TK218 - testing(backend): AUT-BE-02 - Validación de verbos HTTP no permitidos (405)` |
+| `AUT-API-XX` | API Caja Negra Postman | `TK224 - testing(api): AUT-API-03 - Verificación de tiempos de respuesta (< 500 ms)` |
+| `AUT-E2E-XX` | E2E Playwright POM | `TK229 - testing(frontend): AUT-E2E-02 - Flujo E2E: Autenticación completa` |
+| `ACC-XX` | Accesibilidad WCAG 2.2 | `TK233 - testing(frontend): ACC-02 - Auditoría con Google Lighthouse en vistas principales` |
+| `ACC-BUG-XX` | Bug de Accesibilidad | `TK237 - bug(frontend): ACC-BUG-01 - Contraste de color insuficiente en badge de estados` |
+| `BUG-XX` | Bug Funcional / Datos | `TK114 - bug(backend): BUG-01 - Error 400 por CUIT con guiones en alta de cliente` |
+| `DOC-QA-XX` | Documentación y Matrices | `TK240 - docs(qa): DOC-QA-01 - Actualización del Plan Maestro de Pruebas v2.0.0` |
+
+---
+
+### Q.3 Protocolo de Ejecución de Tickets de Testing
+
+Al trabajar un ticket de testing (`TK213`–`TK242`):
+
+1. **Lectura y Verificación de Precondiciones:**
+   ```bash
+   py .agents/skills/ispc-dev/scripts/kanban_helper.py --task <TK_ID>
+   ```
+2. **Inicio en Kanban:**
+   ```bash
+   py .agents/skills/ispc-dev/scripts/kanban_helper.py --task <TK_ID> --start
+   git checkout <DEV_BRANCH_NAME>
+   ```
+3. **Plan del Ticket Pedagógico:**
+   Detallar la capa de la pirámide, el caso de prueba asociado, el estándar técnico a aplicar (AAA / POM / Newman), la aserción y los comandos de reproducción.
+4. **Implementación y Ejecución de la Suite:**
+   Ejecutar las herramientas correspondientes y generar los artefactos de salida (`htmlcov/`, reportes de Newman, videos o traces de Playwright).
+5. **Generación de Evidencia:**
+   Guardar capturas o logs en `FCC_APP/docs/evidencias_moduloX/` o `tests/api/reports/`.
+6. **Actualización de la Matriz de Trazabilidad:**
+   Registrar la fila en [Matriz-de-Trazabilidad.md](file:///c:/Users/av-cr/OneDrive/Escritorio/Integrador-fullstack/.agents/skills/ispc-dev/wiki/Matriz-de-Trazabilidad.md) con el formato de 5 columnas:
+   `HU` | `Caso de Prueba (TC)` | `Test Automatizado (archivo::método)` | `Resultado` | `Bug / Ticket Asociado`
+7. **Cierre y Transición a In Review:**
+   ```bash
+   py .agents/skills/ispc-dev/scripts/kanban_helper.py --task <TK_ID> --status "In Review" --message "<comentario_aprobado>"
+   ```
+
+---
+
+### Q.4 Protocolo de Reporte y Gestión de Bugs (Defectos)
+
+Cuando durante las pruebas manuales o automatizadas se descubra un comportamiento anómalo:
+
+1. **Creación con Plantilla ISPC:**
+   Utilizar la opción `--create-bug` del kanban helper para asegurar el formato estandarizado:
+   ```bash
+   py .agents/skills/ispc-dev/scripts/kanban_helper.py --create-bug --task TK<ID> --scope <frontend|backend> --bug-code <CODIGO_BUG> --title "<titulo>" --severity <Mayor|Crítica|Menor> --wcag "<criterio_si_aplica>"
+   ```
+   O crear el issue siguiendo [references/bug_issue_template.md](file:///c:/Users/av-cr/OneDrive/Escritorio/Integrador-fullstack/.agents/skills/ispc-dev/references/bug_issue_template.md).
+2. **Archivado de Evidencia de Reproducción:**
+   Guardar la captura o log del defecto en `FCC_APP/docs/evidencias_bugs/EVIDENCIA_<CODIGO_BUG>.png`.
+3. **Vinculación con Casos de Prueba:**
+   Vincular el ID del bug en la columna correspondiente del Plan de Pruebas y la Matriz de Trazabilidad.
+
 
 

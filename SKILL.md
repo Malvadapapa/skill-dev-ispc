@@ -269,19 +269,23 @@ Presentar el plan y **esperar OK explícito** antes de continuar. No avanzar a n
 
 Una vez aprobado el plan del módulo, iterar sobre cada ticket en el orden definido usando el **Bloque C** (flujo por ticket). Cada ticket se planifica individualmente, se aprueba, y se ejecuta.
 
-### Paso M5 — Pull Request del Módulo
+### Paso M5 — Pull Request Obligatorio del Módulo hacia Develop
 
-Al finalizar TODOS los tickets del módulo:
+> [!CRITICAL]
+> **Prohibición estricta de push directo a develop:** Queda totalmente prohibido hacer merge local directo, fast-forward o `git push` hacia la rama `develop`. `develop` es una rama protegida. Todo cambio hacia `develop` debe integrarse única y exclusivamente mediante un Pull Request formal en GitHub.
 
-1. Hacer `git push` de la rama del desarrollador:
+Al finalizar los tickets del módulo o sprint:
+
+1. Asegurar que los commits están en la rama del desarrollador (`<DEV_BRANCH_NAME>`):
    ```bash
    git push origin <DEV_BRANCH_NAME>
    ```
-2. Crear el PR hacia `develop` usando el kanban helper:
+2. Crear obligatoriamente el PR hacia `develop` usando el kanban helper:
    ```bash
    py .agents/skills/ispc-dev/scripts/kanban_helper.py --create-pr --head <DEV_BRANCH_NAME> --base develop --pr-title "<titulo_del_pr>" --pr-body-file <archivo_con_body>
    ```
-3. El cuerpo del PR es el borrador aprobado en el Paso M2 (puede ajustarse si hubo cambios durante la ejecución).
+3. El cuerpo del PR debe seguir la guía de estilo del **Bloque E** (narrativo en primera persona, sin listas ni viñetas, vinculando con `Closes #ID`).
+4. Esperar revisión y aprobación formal antes de proceder con el merge.
 
 ---
 
@@ -304,20 +308,28 @@ Para cada ticket del módulo, seguir estrictamente este protocolo:
 
 > **⚠️ Estrategia de ramas:** Cada desarrollador trabaja en **una sola rama personal** (no se crea una rama por ticket). Todos los commits van a la misma rama. Al finalizar, la rama se mergea a `develop` vía PR.
 
-### Paso T1 — Lectura Completa del Ticket
+### Paso T1 — Lectura Completa del Ticket y Verificación de Dependencias
 
 1. Leer el ticket completo desde GitHub:
    ```bash
    py .agents/skills/ispc-dev/scripts/kanban_helper.py --task <TK_ID>
    ```
 2. **Lectura exhaustiva:** Leer en profundidad toda la descripción, flujo de trabajo, especificaciones técnicas y criterios de aceptación. Queda estrictamente prohibido resumir o dar por sentado requerimientos sin contrastar la descripción completa.
+3. **Verificación Estricta de Dependencias:**
+   Verificar obligatoriamente el estado de todas las tareas dependientes antes de avanzar:
+   ```bash
+   py .agents/skills/ispc-dev/scripts/kanban_helper.py --task <TK_ID> --check-deps
+   ```
+   > [!CRITICAL]
+   > **Prevención Estricta de Conflictos de Ramas:** Si el ticket posee dependencias en estado `Backlog`, `Todo`, `In Progress` o `In Review`, **QUEDA ESTRICTAMENTE PROHIBIDO TOMARLO O INICIARLO**. La dependencia debe estar completamente terminada (`Done`) e integrada en `develop` para evitar divergencias de código y conflictos de merge.
 
-### Paso T2 — Inicio en el Kanban
+### Paso T2 — Inicio en el Kanban con Compuerta de Dependencias
 
-1. Mover la tarea a "In Progress" (sincroniza automáticamente la tarjeta en GitHub Kanban y en la planilla de Google Sheets):
+1. Mover la tarea a "In Progress". El comando `--start` evalúa automáticamente la compuerta de dependencias contra el Kanban de GitHub y **bloquea la acción si detecta dependencias sin resolver**:
    ```bash
    py .agents/skills/ispc-dev/scripts/kanban_helper.py --task <TK_ID> --start
    ```
+   *(Si todas las dependencias están en `Done`, sincroniza en tiempo real GitHub Kanban y Google Sheets, asigna al usuario y prepara la rama. En casos excepcionales justificados se puede forzar con `--force-start`)*.
 2. **Retorno inmediato a la rama del desarrollador** (el comando `--start` crea una rama temporal por ticket, ignorarla):
    ```bash
    git checkout <DEV_BRANCH_NAME>

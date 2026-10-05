@@ -16,7 +16,9 @@ Script: `.agents/skills/ispc-dev/scripts/kanban_helper.py`
 
 | Comando | Descripción | Ejemplo |
 |---------|-------------|---------|
-| `--task <ID> --start` | Mueve tarea a "In Progress", asigna al usuario y crea rama | `py scripts/kanban_helper.py --task TK001 --start` |
+| `--task <ID> --check-deps` | Verifica estrictamente si las dependencias de la tarea están en 'Done' | `py scripts/kanban_helper.py --task TK148 --check-deps` |
+| `--task <ID> --start` | Valida dependencias en 'Done', mueve a 'In Progress', asigna al usuario y crea rama | `py scripts/kanban_helper.py --task TK001 --start` |
+| `--task <ID> --start --force-start` | Fuerza el inicio de la tarea omitiendo el bloqueo por dependencias pendientes | `py scripts/kanban_helper.py --task TK001 --start --force-start` |
 | `--task <ID> --assign` | Asigna la tarea al usuario autenticado en GitHub | `py scripts/kanban_helper.py --task TK037 --assign` |
 | `--task <ID> --status <ESTADO>` | Mueve tarea a un estado específico | `py scripts/kanban_helper.py --task TK001 --status "In Review"` |
 | `--task <ID> --message <TEXTO>` | Agrega comentario a la tarea | `py scripts/kanban_helper.py --task TK001 --message "Implementado"` |

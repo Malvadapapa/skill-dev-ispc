@@ -60,7 +60,8 @@ from _tickets import (
     find_item_by_tk_id, get_repository_id, create_github_issue,
     add_issue_to_project, get_repo_labels, add_labels_to_issue,
     apply_labels_by_names, create_and_add_ticket, create_ispc_bug_ticket,
-    list_project_fields, update_item_field_by_names
+    list_project_fields, update_item_field_by_names, audit_empty_bodies,
+    sync_bodies_from_markdown, get_ticket_dependencies, check_ticket_dependencies
 )
 from _menu import menu_main
 
@@ -72,7 +73,9 @@ def handle_cli_arguments():
     parser.add_argument("--assignee-filter", metavar="USERNAME", help="Filtrar tareas por usuario asignado (ej. 'Malvadapapa', 'KaryQuinteros')")
     parser.add_argument("--summary", action="store_true", help="Mostrar resumen cuantitativo de las columnas")
     parser.add_argument("--task", metavar="TK_ID", help="ID de la tarea a gestionar (ej. TK001)")
-    parser.add_argument("--start", action="store_true", help="Iniciar la tarea especificada (mover a In Progress y crear rama)")
+    parser.add_argument("--start", action="store_true", help="Iniciar la tarea especificada (verificando dependencias, moviendo a In Progress y creando rama)")
+    parser.add_argument("--force-start", action="store_true", help="Forzar inicio de la tarea omitiendo el bloqueo por dependencias pendientes")
+    parser.add_argument("--check-deps", action="store_true", help="Verificar el estado de las dependencias de la tarea especificada por --task")
     parser.add_argument("--status", metavar="ESTADO", help="Mover la tarea especificada a un nuevo estado (ej. 'In Review', 'Done')")
     parser.add_argument("--message", metavar="TEXTO", help="Agregar un comentario o descripción de avances a la tarea especificada")
     parser.add_argument("--message-file", metavar="PATH", help="Agregar un comentario a la tarea leyendo el contenido de un archivo")
@@ -89,6 +92,9 @@ def handle_cli_arguments():
     parser.add_argument("--update-body", metavar="TEXTO", help="Actualizar la descripción/cuerpo del ticket especificado por --task")
     parser.add_argument("--update-body-file", metavar="PATH", help="Actualizar la descripción/cuerpo del ticket especificado por --task usando el contenido de un archivo")
     parser.add_argument("--rename-ticket", metavar="NUEVO_TITULO", help="Renombrar el ticket especificado por --task con un nuevo título")
+    parser.add_argument("--audit-empty-bodies", action="store_true", help="Auditar y listar tareas del Kanban con cuerpo/descripción vacío")
+    parser.add_argument("--sync-bodies-from-md", metavar="PATH", help="Sincronizar cuerpos de tickets desde un archivo Markdown")
+    parser.add_argument("--overwrite-bodies", action="store_true", help="Sobrescribir el cuerpo del ticket aunque ya tenga contenido")
     parser.add_argument("--create-bug", action="store_true", help="Crear un ticket de bug con la plantilla oficial ISPC y sumarlo al Kanban")
     parser.add_argument("--scope", metavar="SCOPE", default="frontend", help="Alcance del ticket o bug (ej: frontend, backend, api)")
     parser.add_argument("--bug-code", metavar="CODE", help="Código de trazabilidad del bug (ej: BUG-04, ACC-BUG-01)")
@@ -142,7 +148,7 @@ def handle_cli_arguments():
     
     args = parser.parse_args()
     
-    if not (args.list or args.column or args.assignee_filter or args.summary or args.task or args.start or args.status or args.message or args.message_file or args.fix_architecture or args.wiki or args.update_wiki or args.create_ticket or args.create_bug or args.add_labels or args.list_fields or args.set_field or args.update_body or args.update_body_file or args.rename_ticket or args.create_pr or args.list_prs or args.pr or args.approve_pr or args.request_changes_pr or args.dismiss_review_pr or args.merge_pr or args.info or args.docs or args.docs_search or args.docs_read or args.docs_update or args.assign or args.update_sheet or args.list_sheets or args.add_team_table or args.update_batch_traceability or args.audit or args.sync_dependencies or args.sync_backlog or args.check_user or args.google_login or args.force_login or args.config_dev or args.dev_branch or args.github_token or args.figma_status or args.sync_testing_matrix):
+    if not (args.list or args.column or args.assignee_filter or args.summary or args.task or args.start or args.force_start or args.check_deps or args.status or args.message or args.message_file or args.fix_architecture or args.wiki or args.update_wiki or args.create_ticket or args.create_bug or args.add_labels or args.list_fields or args.set_field or args.update_body or args.update_body_file or args.rename_ticket or args.audit_empty_bodies or args.sync_bodies_from_md or args.create_pr or args.list_prs or args.pr or args.approve_pr or args.request_changes_pr or args.dismiss_review_pr or args.merge_pr or args.info or args.docs or args.docs_search or args.docs_read or args.docs_update or args.assign or args.update_sheet or args.list_sheets or args.add_team_table or args.update_batch_traceability or args.audit or args.sync_dependencies or args.sync_backlog or args.check_user or args.google_login or args.force_login or args.config_dev or args.dev_branch or args.github_token or args.figma_status or args.sync_testing_matrix):
         return False
 
     if args.sync_testing_matrix:
@@ -390,6 +396,14 @@ def handle_cli_arguments():
             print(f"[ERROR] No se pudo renombrar el ticket '{args.task}'.")
         return True
 
+    if args.audit_empty_bodies:
+        audit_empty_bodies()
+        return True
+
+    if args.sync_bodies_from_md:
+        sync_bodies_from_markdown(args.sync_bodies_from_md, overwrite=args.overwrite_bodies)
+        return True
+
     if args.summary:
         items = fetch_project_items()
         show_summary(items)
@@ -505,6 +519,10 @@ def handle_cli_arguments():
                 print(item["body"])
                 print("==================================================\n")
 
+            if args.check_deps:
+                check_ticket_dependencies(item, verbose=True)
+                continue
+
             if args.add_labels:
                 labels = [l.strip() for l in args.add_labels.split(",")]
                 apply_labels_by_names(item["content_id"], labels)
@@ -606,6 +624,13 @@ def handle_cli_arguments():
                             print("[ERROR] Error al actualizar nota borrador.")
 
             if args.start:
+                if not args.force_start:
+                    if not check_ticket_dependencies(item, verbose=True):
+                        print(f"[ACCION DENEGADA] No se inició la tarea '{tk_id}'. Resuelva e integre primero las dependencias a develop o use --force-start bajo su propia responsabilidad.")
+                        continue
+                else:
+                    print(f"[WARN] Iniciando '{tk_id}' con bandera --force-start. Se omitió la validación de dependencias.")
+
                 success = update_item_status(item["id"], "In Progress")
                 if success:
                     update_google_sheet_task_status(DEFAULT_GOOGLE_SHEET_URL, tk_id, "IN PROGRESS", assignee="CRISTIAN")

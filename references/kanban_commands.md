@@ -43,6 +43,7 @@ Script: `.agents/skills/ispc-dev/scripts/kanban_helper.py`
 | `--merge-pr <ID>` | Realiza el merge/fusión de un Pull Request aprobado a la rama base | `py scripts/kanban_helper.py --merge-pr 84` |
 | `--create-pr` | Crea un Pull Request en GitHub | `py scripts/kanban_helper.py --create-pr --pr-title "feat: módulo X" --head cristian-vargas --base develop --pr-body "Descripción"` |
 | `--create-pr` con archivo | Igual pero lee el body de un archivo | `py scripts/kanban_helper.py --create-pr --pr-title "feat: módulo X" --pr-body-file pr_body.md` |
+| `--delete-branch <RAMA>` | Elimina una rama efímera local y remotamente tras el merge de su PR | `py scripts/kanban_helper.py --delete-branch "feature/tk144-claims"` |
 
 ## Documentación del Proyecto
 

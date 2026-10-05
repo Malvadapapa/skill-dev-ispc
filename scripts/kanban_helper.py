@@ -145,11 +145,17 @@ def handle_cli_arguments():
     parser.add_argument("--config-dev", action="store_true", help="Actualiza la configuración del desarrollador (.env)")
     parser.add_argument("--dev-branch", metavar="BRANCH_NAME", help="Nombre de la rama personal de desarrollo a guardar en .env")
     parser.add_argument("--github-token", metavar="TOKEN", help="Token de acceso personal de GitHub a guardar en .env")
+    parser.add_argument("--delete-branch", metavar="BRANCH_NAME", help="Elimina una rama efímera local y remotamente tras el merge de un PR")
     
     args = parser.parse_args()
     
-    if not (args.list or args.column or args.assignee_filter or args.summary or args.task or args.start or args.force_start or args.check_deps or args.status or args.message or args.message_file or args.fix_architecture or args.wiki or args.update_wiki or args.create_ticket or args.create_bug or args.add_labels or args.list_fields or args.set_field or args.update_body or args.update_body_file or args.rename_ticket or args.audit_empty_bodies or args.sync_bodies_from_md or args.create_pr or args.list_prs or args.pr or args.approve_pr or args.request_changes_pr or args.dismiss_review_pr or args.merge_pr or args.info or args.docs or args.docs_search or args.docs_read or args.docs_update or args.assign or args.update_sheet or args.list_sheets or args.add_team_table or args.update_batch_traceability or args.audit or args.sync_dependencies or args.sync_backlog or args.check_user or args.google_login or args.force_login or args.config_dev or args.dev_branch or args.github_token or args.figma_status or args.sync_testing_matrix):
+    if not (args.list or args.column or args.assignee_filter or args.summary or args.task or args.start or args.force_start or args.check_deps or args.status or args.message or args.message_file or args.fix_architecture or args.wiki or args.update_wiki or args.create_ticket or args.create_bug or args.add_labels or args.list_fields or args.set_field or args.update_body or args.update_body_file or args.rename_ticket or args.audit_empty_bodies or args.sync_bodies_from_md or args.create_pr or args.list_prs or args.pr or args.approve_pr or args.request_changes_pr or args.dismiss_review_pr or args.merge_pr or args.info or args.docs or args.docs_search or args.docs_read or args.docs_update or args.assign or args.update_sheet or args.list_sheets or args.add_team_table or args.update_batch_traceability or args.audit or args.sync_dependencies or args.sync_backlog or args.check_user or args.google_login or args.force_login or args.config_dev or args.dev_branch or args.github_token or args.figma_status or args.sync_testing_matrix or args.delete_branch):
         return False
+
+    if args.delete_branch:
+        from _git_utils import delete_branch
+        delete_branch(args.delete_branch)
+        return True
 
     if args.sync_testing_matrix:
         sync_testing_matrix_modulo5()

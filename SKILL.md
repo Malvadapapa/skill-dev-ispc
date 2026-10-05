@@ -269,23 +269,32 @@ Presentar el plan y **esperar OK explícito** antes de continuar. No avanzar a n
 
 Una vez aprobado el plan del módulo, iterar sobre cada ticket en el orden definido usando el **Bloque C** (flujo por ticket). Cada ticket se planifica individualmente, se aprueba, y se ejecuta.
 
-### Paso M5 — Pull Request Obligatorio del Módulo hacia Develop
+### Paso M5 — Pull Requests Atómicos hacia Develop vía Ramas Efímeras
 
 > [!CRITICAL]
 > **Prohibición estricta de push directo a develop:** Queda totalmente prohibido hacer merge local directo, fast-forward o `git push` hacia la rama `develop`. `develop` es una rama protegida. Todo cambio hacia `develop` debe integrarse única y exclusivamente mediante un Pull Request formal en GitHub.
 
-Al finalizar los tickets del módulo o sprint:
+Para garantizar la atomicidad en la revisión requerida por la cátedra y sortear la restricción de GitHub (que no permite múltiples PRs simultáneos entre el mismo par de ramas):
 
-1. Asegurar que los commits están en la rama del desarrollador (`<DEV_BRANCH_NAME>`):
+1. **Aislamiento en Rama Efímera:** Desde la rama personal (`<DEV_BRANCH_NAME>`), crear la rama temporal correspondiente al ticket terminado y publicarla:
    ```bash
-   git push origin <DEV_BRANCH_NAME>
+   git checkout -b feature/tk<ID>-<slug>
+   git push origin feature/tk<ID>-<slug>
    ```
-2. Crear obligatoriamente el PR hacia `develop` usando el kanban helper:
+2. **Crear el Pull Request Atómico hacia develop:**
    ```bash
-   py .agents/skills/ispc-dev/scripts/kanban_helper.py --create-pr --head <DEV_BRANCH_NAME> --base develop --pr-title "<titulo_del_pr>" --pr-body-file <archivo_con_body>
+   py .agents/skills/ispc-dev/scripts/kanban_helper.py --create-pr --head feature/tk<ID>-<slug> --base develop --pr-title "<titulo_del_pr>" --pr-body-file <archivo_con_body>
    ```
 3. El cuerpo del PR debe seguir la guía de estilo del **Bloque E** (narrativo en primera persona, sin listas ni viñetas, vinculando con `Closes #ID`).
-4. Esperar revisión y aprobación formal antes de proceder con el merge.
+4. **Retorno a la rama personal:**
+   ```bash
+   git checkout <DEV_BRANCH_NAME>
+   ```
+5. **Limpieza Obligatoria Post-Merge:** Al ser aprobado y mergeado el PR en GitHub, eliminar la rama efímera y sincronizar la rama personal con `develop`:
+   ```bash
+   py .agents/skills/ispc-dev/scripts/kanban_helper.py --delete-branch feature/tk<ID>-<slug>
+   git fetch origin && git merge origin/develop
+   ```
 
 ---
 
@@ -306,7 +315,7 @@ Para cada ticket del módulo, seguir estrictamente este protocolo:
    ```
 3. **Verificación visual:** Ejecutar `git status` y confirmar la rama actual.
 
-> **⚠️ Estrategia de ramas:** Cada desarrollador trabaja en **una sola rama personal** (no se crea una rama por ticket). Todos los commits van a la misma rama. Al finalizar, la rama se mergea a `develop` vía PR.
+> **⚠️ Estrategia de ramas híbrida:** Cada desarrollador trabaja en su **rama personal persistente** para el avance continuo. Para someter a revisión e integración cualquier ticket hacia `develop`, se crea una **rama efímera atómica** (`feature/tk<ID>-<slug>` o `fix/tk<ID>-<slug>`) desde donde se emite el PR individual. Una vez aprobado y fusionado, dicha rama efímera se elimina de inmediato y la rama personal se sincroniza con `develop`.
 
 ### Paso T1 — Lectura Completa del Ticket y Verificación de Dependencias
 
@@ -330,11 +339,11 @@ Para cada ticket del módulo, seguir estrictamente este protocolo:
    py .agents/skills/ispc-dev/scripts/kanban_helper.py --task <TK_ID> --start
    ```
    *(Si todas las dependencias están en `Done`, sincroniza en tiempo real GitHub Kanban y Google Sheets, asigna al usuario y prepara la rama. En casos excepcionales justificados se puede forzar con `--force-start`)*.
-2. **Retorno inmediato a la rama del desarrollador** (el comando `--start` crea una rama temporal por ticket, ignorarla):
+2. **Retorno a la rama personal para desarrollo:**
    ```bash
    git checkout <DEV_BRANCH_NAME>
    ```
-3. Confirmar con `git status`.
+3. Confirmar con `git status`. (La rama efímera para el PR se publicará al completar los commits atómicos en el Paso M5 / D.1).
 
 ### Paso T3 — Plan del Ticket con Explicación Pedagógica
 
@@ -441,25 +450,28 @@ Si una prueba falla, hay conflicto de migraciones, o el linting reporta errores:
 
 ## 🅳 Bloque D — PRs y Auditoría
 
-### D.1 Integración a Develop
+### D.1 Integración a Develop mediante Pull Request Atómico
 
-1. Subir commits de la rama del desarrollador:
+1. **Creación de la rama efímera desde la rama personal:**
    ```bash
-   git push origin <DEV_BRANCH_NAME>
+   git checkout -b feature/tk<ID>-<slug>
+   git push origin feature/tk<ID>-<slug>
    ```
-2. Crear PR hacia `develop`:
+2. **Crear el PR atómico hacia `develop`:**
    ```bash
-   py .agents/skills/ispc-dev/scripts/kanban_helper.py --create-pr --head <DEV_BRANCH_NAME> --base develop --pr-title "<titulo>" --pr-body "<descripcion>"
+   py .agents/skills/ispc-dev/scripts/kanban_helper.py --create-pr --head feature/tk<ID>-<slug> --base develop --pr-title "<titulo>" --pr-body "<descripcion>"
    ```
-3. El título del PR describe brevemente las tareas cubiertas (ej: `feat: autenticación y cierre de sesión - TK007 y TK008`).
-4. Si se decide merge local en lugar de PR:
+3. El título del PR debe respetar la convención semántica indicando el ticket (ej: `feat(auth): emitir claims de nombre y apellido en token jwt - TK144`).
+4. **Volver a la rama personal:**
    ```bash
-   git checkout develop && git pull
-   git merge <DEV_BRANCH_NAME>
-   git push origin develop
    git checkout <DEV_BRANCH_NAME>
    ```
-5. **No eliminar la rama del desarrollador** después de la integración.
+5. **Limpieza post-merge obligatoria:** Una vez aprobado y fusionado en `develop`, eliminar la rama efímera tanto remota como localmente y sincronizar la rama personal:
+   ```bash
+   py .agents/skills/ispc-dev/scripts/kanban_helper.py --delete-branch feature/tk<ID>-<slug>
+   git fetch origin && git merge origin/develop
+   ```
+   *(Nota: La rama personal del desarrollador `<DEV_BRANCH_NAME>` es persistente y nunca se elimina).*
 
 ### D.2 PR a Main (Producción)
 

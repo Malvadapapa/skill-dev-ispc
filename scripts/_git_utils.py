@@ -99,3 +99,32 @@ def commit_and_push_changes(task_title):
     print(f"Ejecutando: git push origin {current_branch}")
     run_git(["push", "origin", current_branch])
     return True
+
+def delete_branch(branch_name, remote=True):
+    """Elimina una rama local y opcionalmente remota tras el merge de un PR."""
+    print(f"\n--- Eliminación de rama efímera '{branch_name}' ---")
+    current = get_current_branch()
+    if current == branch_name:
+        print(f"[ERROR] No se puede eliminar la rama activa '{branch_name}'. Cambiá a otra rama primero (ej: tu rama personal).")
+        return False
+        
+    success = True
+    if remote:
+        print(f"Eliminando rama remota: git push origin --delete {branch_name}")
+        rem_res = run_git(["push", "origin", "--delete", branch_name])
+        if rem_res is None:
+            print(f"[AVISO] No se pudo eliminar la rama remota '{branch_name}' o ya fue eliminada.")
+            success = False
+        else:
+            print(f"[OK] Rama remota '{branch_name}' eliminada exitosamente.")
+            
+    print(f"Eliminando rama local: git branch -D {branch_name}")
+    loc_res = run_git(["branch", "-D", branch_name])
+    if loc_res is None:
+        print(f"[AVISO] No se pudo eliminar la rama local '{branch_name}' o no existe.")
+        success = False
+    else:
+        print(f"[OK] Rama local '{branch_name}' eliminada exitosamente.")
+        
+    return success
+
